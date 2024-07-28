@@ -17,8 +17,8 @@ A simple web service written in popular go web frameworks
   "value": 1000
   "description": "Item description"
   "active": true
-  "created-on": "2024-07-26T00.00.000Z"
-  "updated-on": "2024-07-27T00.00.000Z"
+  "createdOn": "2024-07-26T00.00.000Z"
+  "updatedOn": "2024-07-27T00.00.000Z"
 }
 ```
 

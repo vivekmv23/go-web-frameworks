@@ -22,7 +22,7 @@ func getMongoCollection() *mongo.Collection {
 	client, err := mongo.Connect(context.TODO(), options.Client(), options.Client().ApplyURI("mongodb://localhost:27017"))
 
 	if err != nil {
-		log.Printf("ERROR: failed to get client: %s", err)
+		log.Printf("ERROR: failed to get mongo client: %s", err)
 	}
 
 	return client.Database(ITEM_DB).Collection(ITEM_COLLECTION)
@@ -42,6 +42,24 @@ func GetById(id uuid.UUID) (Item, error) {
 	var i Item
 	err := mc.FindOne(context.TODO(), bson.D{{Key: "id", Value: id}}).Decode(&i)
 	return i, mapDbError(err, id)
+
+}
+
+func GetAll() ([]Item, error) {
+	
+	mc := getMongoCollection()
+	
+	var i []Item
+	
+	cur, err := mc.Find(context.TODO(), bson.D{{}})
+	
+	if err != nil {
+		return i, mapDbError(err)
+	}
+
+	err = cur.All(context.TODO(), &i)
+
+	return i, mapDbError(err)
 
 }
 

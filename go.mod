@@ -4,7 +4,6 @@ go 1.20
 
 require (
 	github.com/google/uuid v1.6.0
-	github.com/pkg-id/objectid v0.2.0
 	go.mongodb.org/mongo-driver v1.16.0
 )
 
