@@ -1,9 +1,10 @@
 package main
 
 import (
-	"github.com/vivekmv23/go-web-frameworks/database"
+	wfstandardlib "github.com/vivekmv23/go-web-frameworks/wf-standard-lib"
 )
 
 func main() {
-	database.TestDbClient()
+	standardLibWebServer := wfstandardlib.StandardLibWebServer{}
+	standardLibWebServer.Start(8080)
 }

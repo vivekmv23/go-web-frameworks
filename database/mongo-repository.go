@@ -32,7 +32,7 @@ func getMongoCollection() *mongo.Collection {
 
 func SaveItem(i *lib.Item) error {
 	mc := getMongoCollection()
-	updateTimes(i)
+	determinations(i)
 	_, err := mc.InsertOne(context.TODO(), i)
 
 	return mapDbError(err)
@@ -86,12 +86,12 @@ func UpdateItem(i lib.Item, ifMatch string) (lib.Item, error) {
 	}
 
 	if existingItem.UpdatedOn.String() != ifMatch {
-		return i, fmt.Errorf("Update request is outdated: if-match(%s) != %s", ifMatch, existingItem.UpdatedOn.String())
+		return i, &Outdated{}
 	}
 
 	i.DbId = existingItem.DbId
 	i.CreatedOn = existingItem.CreatedOn
-	updateTimes(&i)
+	determinations(&i)
 
 	iDoc, err := toDoc(i)
 	if err != nil {
@@ -132,11 +132,17 @@ func mapDbError(err error, arg ...any) error {
 	return &Unclassified{err: err}
 }
 
-func updateTimes(i *lib.Item) {
+func determinations(i *lib.Item) {
+	
+	if i.Id == uuid.Nil {
+		i.Id = uuid.New()
+	}
+
 	now := time.Now()
 	if i.CreatedOn.IsZero() {
 		i.CreatedOn = now
 	}
+
 	i.UpdatedOn = now
 }
 
