@@ -12,6 +12,13 @@ func (n *NotFound) Error() string {
 	return fmt.Sprintf("item with id %s not found", n.id)
 }
 
+type Outdated struct {
+}
+
+func (o *Outdated) Error() string {
+	return "update request is outdated"
+}
+
 type Conflict struct {
 }
 
