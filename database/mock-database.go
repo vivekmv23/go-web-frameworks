@@ -39,7 +39,7 @@ type MockedDataBase struct {
 	err error
 }
 
-func NewMockedDatabase(err error) (*MockedDataBase) {
+func NewMockedDatabase(err error) *MockedDataBase {
 	return &MockedDataBase{err: err}
 }
 
