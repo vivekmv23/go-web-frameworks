@@ -13,20 +13,20 @@ import (
 )
 
 var (
-	error_generic error = fmt.Errorf("generic error")
-	error_not_found *database.NotFound = &database.NotFound{ Id: "some-id",}
-	error_outdated *database.Outdated = &database.Outdated{}
-	error_conflict *database.Conflict = &database.Conflict{}
+	error_generic   error              = fmt.Errorf("generic error")
+	error_not_found *database.NotFound = &database.NotFound{Id: "some-id"}
+	error_outdated  *database.Outdated = &database.Outdated{}
+	error_conflict  *database.Conflict = &database.Conflict{}
 )
 
 func readTestData(t *testing.T, name string) []byte {
-    t.Helper()
-    content, err := os.ReadFile("./testdata/" + name)
-    if err != nil {
-        t.Errorf("Could not read %v", name)
-    }
+	t.Helper()
+	content, err := os.ReadFile("../testdata/" + name)
+	if err != nil {
+		t.Errorf("Could not read %v", name)
+	}
 
-    return content
+	return content
 }
 
 func TestServer_GetAll(t *testing.T) {
@@ -228,4 +228,3 @@ func TestServer_MethodNotAllowed(t *testing.T) {
 	assert.Equal(t, 405, res.StatusCode)
 	assert.NotEmpty(t, res.Body)
 }
-

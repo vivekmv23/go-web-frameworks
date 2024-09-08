@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/vivekmv23/go-web-frameworks/database"
 	"github.com/vivekmv23/go-web-frameworks/lib"
+	"github.com/vivekmv23/go-web-frameworks/web"
 )
 
 var (
@@ -49,8 +50,8 @@ func NewItemsHandler(d database.ItemDatabase) *ItemsHandler {
 func (i *ItemsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// Authorization checks
-	if !isAuthorized(r) {
-		errorResponse(http.StatusUnauthorized, w, r, fmt.Errorf("unauthorized, remove header 'unauthorized'"))
+	if !web.IsAuthorized(r) {
+		web.ErrorResponse(http.StatusUnauthorized, w, r, fmt.Errorf("unauthorized, remove header 'unauthorized'"))
 		return
 	}
 
@@ -72,7 +73,7 @@ func (i *ItemsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		i.updateItem(w, r)
 
 	default:
-		errorResponse(http.StatusMethodNotAllowed, w, r, fmt.Errorf("method %s and/or on url %s not allowed", r.Method, r.URL.Path))
+		web.ErrorResponse(http.StatusMethodNotAllowed, w, r, fmt.Errorf("method %s and/or on url %s not allowed", r.Method, r.URL.Path))
 	}
 
 }
@@ -81,14 +82,14 @@ func (h *ItemsHandler) createItem(w http.ResponseWriter, r *http.Request) {
 	var itemToCreate lib.Item
 
 	if err := json.NewDecoder(r.Body).Decode(&itemToCreate); err != nil {
-		errorResponse(http.StatusBadRequest, w, r, err)
+		web.ErrorResponse(http.StatusBadRequest, w, r, err)
 		return
 	}
 
 	if err := h.d.SaveItem(&itemToCreate); err != nil {
-		errorResponse(http.StatusInternalServerError, w, r, err)
+		web.ErrorResponse(http.StatusInternalServerError, w, r, err)
 	} else {
-		successResponse(http.StatusCreated, w, r, itemToCreate)
+		web.SuccessResponse(http.StatusCreated, w, r, itemToCreate)
 	}
 
 }
@@ -101,10 +102,10 @@ func (h *ItemsHandler) getItem(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		// based on err, status code will be changed, e.g. 404 NOT_FOUND
-		errorResponse(http.StatusInternalServerError, w, r, err)
+		web.ErrorResponse(http.StatusInternalServerError, w, r, err)
 	} else {
 		w.Header().Add("Etag", item.UpdatedOn.String())
-		successResponse(http.StatusOK, w, r, item)
+		web.SuccessResponse(http.StatusOK, w, r, item)
 	}
 
 }
@@ -112,7 +113,7 @@ func (h *ItemsHandler) getItem(w http.ResponseWriter, r *http.Request) {
 func (h *ItemsHandler) updateItem(w http.ResponseWriter, r *http.Request) {
 	ifMatch := r.Header.Get("If-Match")
 	if ifMatch == "" {
-		errorResponse(http.StatusPreconditionRequired, w, r, fmt.Errorf("If-Match is required header for update"))
+		web.ErrorResponse(http.StatusPreconditionRequired, w, r, fmt.Errorf("If-Match is required header for update"))
 		return
 	}
 
@@ -122,7 +123,7 @@ func (h *ItemsHandler) updateItem(w http.ResponseWriter, r *http.Request) {
 	var itemToUpdate lib.Item
 
 	if err := json.NewDecoder(r.Body).Decode(&itemToUpdate); err != nil {
-		errorResponse(http.StatusBadRequest, w, r, err)
+		web.ErrorResponse(http.StatusBadRequest, w, r, err)
 		return
 	}
 
@@ -131,18 +132,18 @@ func (h *ItemsHandler) updateItem(w http.ResponseWriter, r *http.Request) {
 	updatedItem, err := h.d.UpdateItem(itemToUpdate, ifMatch)
 
 	if err != nil {
-		errorResponse(http.StatusInternalServerError, w, r, err)
+		web.ErrorResponse(http.StatusInternalServerError, w, r, err)
 	} else {
-		successResponse(http.StatusOK, w, r, updatedItem)
+		web.SuccessResponse(http.StatusOK, w, r, updatedItem)
 	}
 }
 
 func (h *ItemsHandler) getAllItem(w http.ResponseWriter, r *http.Request) {
 	items, err := h.d.GetAllItems()
 	if err != nil {
-		errorResponse(http.StatusInternalServerError, w, r, err)
+		web.ErrorResponse(http.StatusInternalServerError, w, r, err)
 	} else {
-		successResponse(http.StatusOK, w, r, items)
+		web.SuccessResponse(http.StatusOK, w, r, items)
 	}
 
 }
@@ -151,67 +152,8 @@ func (h *ItemsHandler) deleteItem(w http.ResponseWriter, r *http.Request) {
 	matches := ItemsWithIDEndpointRegex.FindStringSubmatch(r.RequestURI)
 	idToDelete, _ := uuid.Parse(matches[1])
 	if err := h.d.DeleteItemById(idToDelete); err != nil {
-		errorResponse(http.StatusInternalServerError, w, r, err)
+		web.ErrorResponse(http.StatusInternalServerError, w, r, err)
 	} else {
-		successResponse(http.StatusNoContent, w, r, nil)
+		web.SuccessResponse(http.StatusNoContent, w, r, nil)
 	}
-}
-
-// Call before each
-func isAuthorized(r *http.Request) bool {
-	log.Println("Stubbed auth check for host:", r.Host)
-	return r.Header.Get("unauthorized") == ""
-}
-
-func successResponse(statusCode int, w http.ResponseWriter, r *http.Request, response any) {
-
-	w.Header().Add("Content-Type", "application/json")
-	w.WriteHeader(statusCode)
-
-	if response != nil {
-		resJson, err := json.Marshal(response)
-		if err != nil {
-			errorResponse(http.StatusInternalServerError, w, r, err)
-			return
-		}
-		w.Write(resJson)
-	}
-}
-
-func errorResponse(statusCode int, w http.ResponseWriter, r *http.Request, err error) {
-
-	e := lib.Error{
-		Error: err.Error(),
-		Path:  r.RequestURI,
-	}
-
-	statusCode = mapErrorToHttpStatus(err, statusCode)
-
-	ejson, err := json.Marshal(e)
-
-	if err != nil {
-		w.Header().Add("Content-Type", "text/plain")
-		w.WriteHeader(statusCode)
-		w.Write([]byte("Failed to form the error struct"))
-	} else {
-		w.Header().Add("Content-Type", "application/json")
-		w.WriteHeader(statusCode)
-		w.Write(ejson)
-	}
-
-}
-
-func mapErrorToHttpStatus(err error, statusCode int) int {
-
-	_, isNotFound := err.(*database.NotFound)
-	if isNotFound {
-		return http.StatusNotFound
-	}
-
-	_, isOutDated := err.(*database.Outdated)
-	if isOutDated {
-		return http.StatusPreconditionFailed
-	}
-
-	return statusCode
 }
