@@ -5,11 +5,11 @@ import (
 )
 
 type NotFound struct {
-	id interface{}
+	Id interface{}
 }
 
 func (n *NotFound) Error() string {
-	return fmt.Sprintf("item with id %s not found", n.id)
+	return fmt.Sprintf("item with id %s not found", n.Id)
 }
 
 type Outdated struct {
@@ -27,9 +27,9 @@ func (c *Conflict) Error() string {
 }
 
 type Unclassified struct {
-	err error
+	Err error
 }
 
 func (u *Unclassified) Error() string {
-	return fmt.Sprintf("unclassified error: %s", u.err)
+	return fmt.Sprintf("unclassified error: %s", u.Err)
 }
