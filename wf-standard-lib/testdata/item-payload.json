@@ -1,0 +1,6 @@
+{
+    "name": "ItemName",
+    "value": 1000,
+    "description": "Item description",
+    "isActive": true
+}

@@ -19,13 +19,15 @@ func TestDbClient() {
 		Active:      true,
 	}
 
-	if err := SaveItem(&itemToSave); err != nil {
+	d := NewDatabase()
+
+	if err := d.SaveItem(&itemToSave); err != nil {
 		log.Printf("failed to save item: %s\n", err)
 	} else {
 		log.Println("saved item with id:", id1)
 	}
 
-	foundItem, err := GetItemById(id1)
+	foundItem, err := d.GetItemById(id1)
 	if err != nil {
 		log.Println("failed to get:", err)
 	} else {
@@ -34,7 +36,7 @@ func TestDbClient() {
 
 	itemToSave.Value = 321
 
-	updatedItem, err := UpdateItem(itemToSave, foundItem.UpdatedOn.String())
+	updatedItem, err := d.UpdateItem(itemToSave, foundItem.UpdatedOn.String())
 
 	if err != nil {
 		log.Println("failed to update:", err)
@@ -42,7 +44,7 @@ func TestDbClient() {
 		log.Println("updated item with value:", updatedItem.Value)
 	}
 
-	items, err := GetAllItems()
+	items, err := d.GetAllItems()
 
 	if err != nil {
 		log.Println("failed to get all:", err)
@@ -53,7 +55,7 @@ func TestDbClient() {
 		}
 	}
 
-	if err := DeleteItemById(id1); err != nil {
+	if err := d.DeleteItemById(id1); err != nil {
 		log.Println("failed to delete:", err)
 	} else {
 		log.Println("deleted item with id:", id1)
@@ -62,20 +64,20 @@ func TestDbClient() {
 	// Not found tests
 	id2 := uuid.New()
 
-	if _, err := GetItemById(id2); err != nil {
+	if _, err := d.GetItemById(id2); err != nil {
 		log.Println("failed to get:", err)
 	} else {
 		log.Println("found item with id:", id2)
 	}
 
-	if err := DeleteItemById(id2); err != nil {
+	if err := d.DeleteItemById(id2); err != nil {
 		log.Println("failed to delete:", err)
 	} else {
 		log.Println("deleted item with id:", id2)
 	}
 
 	itemToSave.Id = id2
-	updatedItem, err = UpdateItem(itemToSave, foundItem.UpdatedOn.String())
+	updatedItem, err = d.UpdateItem(itemToSave, foundItem.UpdatedOn.String())
 	if err != nil {
 		log.Println("failed to update:", err)
 	} else {

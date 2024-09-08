@@ -23,8 +23,11 @@ type StandardLibWebServer struct {
 func (ws *StandardLibWebServer) Start(port int) {
 	mux := http.NewServeMux()
 
-	mux.Handle("/items", &ItemsHandler{})
-	mux.Handle("/items/", &ItemsHandler{})
+	d := database.NewDatabase()
+	ih := NewItemsHandler(d)
+
+	mux.Handle("/items", ih)
+	mux.Handle("/items/", ih)
 
 	log.Printf("Starting Server %d, Using Standard Lib...\n", port)
 	p := fmt.Sprintf(":%d", port)
@@ -35,6 +38,11 @@ func (ws *StandardLibWebServer) Start(port int) {
 }
 
 type ItemsHandler struct {
+	d database.ItemDatabase
+}
+
+func NewItemsHandler(d database.ItemDatabase) *ItemsHandler {
+	return &ItemsHandler{d: d}
 }
 
 // Satisfying the interface for handler
@@ -49,19 +57,19 @@ func (i *ItemsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	switch {
 	// Explicitly routing request based on method and url pattern :(
 	case r.Method == http.MethodGet && ItemsEndpointRegex.MatchString(r.URL.Path):
-		getAllItem(w, r)
+		i.getAllItem(w, r)
 
 	case r.Method == http.MethodGet && ItemsWithIDEndpointRegex.MatchString(r.URL.Path):
-		getItem(w, r)
+		i.getItem(w, r)
 
 	case r.Method == http.MethodPost && ItemsEndpointRegex.MatchString(r.URL.Path):
-		createItem(w, r)
+		i.createItem(w, r)
 
 	case r.Method == http.MethodDelete && ItemsWithIDEndpointRegex.MatchString(r.URL.Path):
-		deleteItem(w, r)
+		i.deleteItem(w, r)
 
 	case r.Method == http.MethodPut && ItemsWithIDEndpointRegex.MatchString(r.URL.Path):
-		updateItem(w, r)
+		i.updateItem(w, r)
 
 	default:
 		errorResponse(http.StatusMethodNotAllowed, w, r, fmt.Errorf("method %s and/or on url %s not allowed", r.Method, r.URL.Path))
@@ -69,7 +77,7 @@ func (i *ItemsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 }
 
-func createItem(w http.ResponseWriter, r *http.Request) {
+func (h *ItemsHandler) createItem(w http.ResponseWriter, r *http.Request) {
 	var itemToCreate lib.Item
 
 	if err := json.NewDecoder(r.Body).Decode(&itemToCreate); err != nil {
@@ -77,7 +85,7 @@ func createItem(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := database.SaveItem(&itemToCreate); err != nil {
+	if err := h.d.SaveItem(&itemToCreate); err != nil {
 		errorResponse(http.StatusInternalServerError, w, r, err)
 	} else {
 		successResponse(http.StatusCreated, w, r, itemToCreate)
@@ -85,11 +93,11 @@ func createItem(w http.ResponseWriter, r *http.Request) {
 
 }
 
-func getItem(w http.ResponseWriter, r *http.Request) {
+func (h *ItemsHandler) getItem(w http.ResponseWriter, r *http.Request) {
 	matches := ItemsWithIDEndpointRegex.FindStringSubmatch(r.RequestURI)
 	idToGet, _ := uuid.Parse(matches[1]) // 0: full string, 1: sub string matched
 
-	item, err := database.GetItemById(idToGet)
+	item, err := h.d.GetItemById(idToGet)
 
 	if err != nil {
 		// based on err, status code will be changed, e.g. 404 NOT_FOUND
@@ -101,7 +109,7 @@ func getItem(w http.ResponseWriter, r *http.Request) {
 
 }
 
-func updateItem(w http.ResponseWriter, r *http.Request) {
+func (h *ItemsHandler) updateItem(w http.ResponseWriter, r *http.Request) {
 	ifMatch := r.Header.Get("If-Match")
 	if ifMatch == "" {
 		errorResponse(http.StatusPreconditionRequired, w, r, fmt.Errorf("If-Match is required header for update"))
@@ -120,7 +128,7 @@ func updateItem(w http.ResponseWriter, r *http.Request) {
 
 	itemToUpdate.Id = idToUpdate
 
-	updatedItem, err := database.UpdateItem(itemToUpdate, ifMatch)
+	updatedItem, err := h.d.UpdateItem(itemToUpdate, ifMatch)
 
 	if err != nil {
 		errorResponse(http.StatusInternalServerError, w, r, err)
@@ -129,8 +137,8 @@ func updateItem(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func getAllItem(w http.ResponseWriter, r *http.Request) {
-	items, err := database.GetAllItems()
+func (h *ItemsHandler) getAllItem(w http.ResponseWriter, r *http.Request) {
+	items, err := h.d.GetAllItems()
 	if err != nil {
 		errorResponse(http.StatusInternalServerError, w, r, err)
 	} else {
@@ -139,10 +147,10 @@ func getAllItem(w http.ResponseWriter, r *http.Request) {
 
 }
 
-func deleteItem(w http.ResponseWriter, r *http.Request) {
+func (h *ItemsHandler) deleteItem(w http.ResponseWriter, r *http.Request) {
 	matches := ItemsWithIDEndpointRegex.FindStringSubmatch(r.RequestURI)
 	idToDelete, _ := uuid.Parse(matches[1])
-	if err := database.DeleteItemById(idToDelete); err != nil {
+	if err := h.d.DeleteItemById(idToDelete); err != nil {
 		errorResponse(http.StatusInternalServerError, w, r, err)
 	} else {
 		successResponse(http.StatusNoContent, w, r, nil)
@@ -178,7 +186,6 @@ func errorResponse(statusCode int, w http.ResponseWriter, r *http.Request, err e
 	}
 
 	statusCode = mapErrorToHttpStatus(err, statusCode)
-	
 
 	ejson, err := json.Marshal(e)
 

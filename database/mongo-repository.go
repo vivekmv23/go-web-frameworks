@@ -18,10 +18,34 @@ const (
 	ITEM_COLLECTION = "items"
 )
 
-func getMongoCollection() *mongo.Collection {
+type ItemDatabase interface {
+	SaveItem(i *lib.Item) error
+	GetItemById(id uuid.UUID) (lib.Item, error)
+	GetAllItems() ([]lib.Item, error)
+	DeleteItemById(id uuid.UUID) error
+	UpdateItem(i lib.Item, ifMatch string) (lib.Item, error)
+}
+
+type Database struct {
+	connection_url string
+}
+
+func NewDatabase() ItemDatabase {
+	return &Database{
+		connection_url: "mongodb://localhost:27017",
+	}
+}
+
+func NewDatabaseWithUrl(connection_url string) ItemDatabase {
+	return &Database{
+		connection_url: connection_url,
+	}
+}
+
+func (d *Database) getMongoCollection() *mongo.Collection {
 
 	// Production ready application should ideally form the URI with credentials from ENV variables
-	client, err := mongo.Connect(context.TODO(), options.Client(), options.Client().ApplyURI("mongodb://localhost:27017"))
+	client, err := mongo.Connect(context.TODO(), options.Client(), options.Client().ApplyURI(d.connection_url))
 
 	if err != nil {
 		log.Printf("ERROR: failed to get mongo client: %s", err)
@@ -30,8 +54,8 @@ func getMongoCollection() *mongo.Collection {
 	return client.Database(ITEM_DB).Collection(ITEM_COLLECTION)
 }
 
-func SaveItem(i *lib.Item) error {
-	mc := getMongoCollection()
+func (d *Database) SaveItem(i *lib.Item) error {
+	mc := d.getMongoCollection()
 	determinations(i)
 	_, err := mc.InsertOne(context.TODO(), i)
 
@@ -39,17 +63,17 @@ func SaveItem(i *lib.Item) error {
 
 }
 
-func GetItemById(id uuid.UUID) (lib.Item, error) {
-	mc := getMongoCollection()
+func (d *Database) GetItemById(id uuid.UUID) (lib.Item, error) {
+	mc := d.getMongoCollection()
 	var i lib.Item
 	err := mc.FindOne(context.TODO(), bson.D{{Key: "id", Value: id}}).Decode(&i)
 	return i, mapDbError(err, id)
 
 }
 
-func GetAllItems() ([]lib.Item, error) {
+func (d *Database) GetAllItems() ([]lib.Item, error) {
 
-	mc := getMongoCollection()
+	mc := d.getMongoCollection()
 
 	var i []lib.Item
 
@@ -61,12 +85,16 @@ func GetAllItems() ([]lib.Item, error) {
 
 	err = cur.All(context.TODO(), &i)
 
+	if i == nil {
+		i = make([]lib.Item, 0)
+	}
+
 	return i, mapDbError(err)
 
 }
 
-func DeleteItemById(id uuid.UUID) error {
-	mc := getMongoCollection()
+func (d *Database) DeleteItemById(id uuid.UUID) error {
+	mc := d.getMongoCollection()
 
 	res, err := mc.DeleteOne(context.TODO(), bson.D{{Key: "id", Value: id}})
 	if res.DeletedCount == 0 {
@@ -76,10 +104,10 @@ func DeleteItemById(id uuid.UUID) error {
 	return mapDbError(err, id)
 }
 
-func UpdateItem(i lib.Item, ifMatch string) (lib.Item, error) {
+func (d *Database) UpdateItem(i lib.Item, ifMatch string) (lib.Item, error) {
 	var existingItem lib.Item
 
-	existingItem, err := GetItemById(i.Id)
+	existingItem, err := d.GetItemById(i.Id)
 
 	if err != nil {
 		return i, err
@@ -98,7 +126,7 @@ func UpdateItem(i lib.Item, ifMatch string) (lib.Item, error) {
 		return i, mapDbError(err)
 	}
 
-	mc := getMongoCollection()
+	mc := d.getMongoCollection()
 
 	filter := bson.D{{Key: "_id", Value: i.DbId}}
 	update := bson.D{{Key: "$set", Value: iDoc}}
@@ -122,18 +150,18 @@ func mapDbError(err error, arg ...any) error {
 	}
 
 	if err == mongo.ErrNoDocuments {
-		return &NotFound{id: arg[0]}
+		return &NotFound{Id: arg[0]}
 	}
 
 	if mongo.IsDuplicateKeyError(err) {
 		return &Conflict{}
 	}
 
-	return &Unclassified{err: err}
+	return &Unclassified{Err: err}
 }
 
 func determinations(i *lib.Item) {
-	
+
 	if i.Id == uuid.Nil {
 		i.Id = uuid.New()
 	}
